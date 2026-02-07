@@ -1,51 +1,107 @@
+import Footer from "../components/Footer";
+import Header from "../components/Header";
+import { Link } from "react-router-dom";
+import { useState } from "react";
 
 const LogIn = () => {
-    return (
-<div className="bg-gray-50">
-      <div className="max-h-screen flex flex-col items-center justify-center py-6 px-4">
-          <div className="p-2 sm:p-8 rounded-2xl bg-white border border-gray-200 shadow-sm">
-            <h1 className="text-slate-900 text-center text-3xl font-semibold">Sign in</h1>
-            <form className="mt-12 space-y-6">
-              <div>
-                <label className="text-slate-900 text-sm font-medium mb-2 block">User Email</label>
-                <div className="relative flex items-center">
-                  <input name="useremail" type="email" required className="w-full text-slate-900 text-sm border border-slate-300 px-4 py-3 pr-8 rounded-md outline-blue-600" placeholder="Enter user email" />
-                </div>
-              </div>
-              <div>
-                <label className="text-slate-900 text-sm font-medium mb-2 block">Password</label>
-                <div className="relative flex items-center">
-                  <input name="password" type="password" required className="w-full text-slate-900 text-sm border border-slate-300 px-4 py-3 pr-8 rounded-md outline-blue-600" placeholder="Enter password" />
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="#bbb" stroke="#bbb" className="w-4 h-4 absolute right-4 cursor-pointer" viewBox="0 0 128 128">
-                    <path d="M64 104C22.127 104 1.367 67.496.504 65.943a4 4 0 0 1 0-3.887C1.367 60.504 22.127 24 64 24s62.633 36.504 63.496 38.057a4 4 0 0 1 0 3.887C126.633 67.496 105.873 104 64 104zM8.707 63.994C13.465 71.205 32.146 96 64 96c31.955 0 50.553-24.775 55.293-31.994C114.535 56.795 95.854 32 64 32 32.045 32 13.447 56.775 8.707 63.994zM64 88c-13.234 0-24-10.766-24-24s10.766-24 24-24 24 10.766 24 24-10.766 24-24 24zm0-40c-8.822 0-16 7.178-16 16s7.178 16 16 16 16-7.178 16-16-7.178-16-16-16z" data-original="#000000"></path>
-                  </svg>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center">
-                  <input id="remember-me" name="remember-me" type="checkbox" className="h-4 w-4 shrink-0 text-blue-600 focus:ring-blue-500 border-slate-300 rounded" />
-                  <label for="remember-me" className="ml-3 block text-sm text-slate-900">
-                    Remember me
-                  </label>
-                </div>
-                <div className="text-sm">
-                  <a href="jajvascript:void(0);" className="text-blue-600 hover:underline font-semibold">
-                    Forgot your password?
-                  </a>
-                </div>
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  return (
+    <div className="flex flex-col min-h-screen">
+      <Header />
+
+      <div className="grow bg-gray-300 flex items-center justify-center px-4">
+        <div className="w-full max-w-md p-6 sm:p-8 rounded-2xl bg-white border border-gray-200 shadow-sm">
+          <h1 className="text-slate-900 text-center text-3xl font-semibold">
+            Log in
+          </h1>
+
+          <form className="mt-6 space-y-5">
+            {/* EMAIL */}
+            <div>
+              <label className="text-slate-900 text-sm font-medium mb-2 block">
+                User Email
+              </label>
+              <input
+                type="email"
+                required
+                className="w-full text-slate-900 text-sm border border-slate-300 px-4 py-3 rounded-md outline-slate-800"
+                placeholder="Enter user email"
+              />
+            </div>
+
+            {/* PASSWORD */}
+            <div className="relative">
+                <label className="text-slate-900 text-sm font-medium mb-2 block">
+                  Password
+                </label>
+                 <input type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required className="w-full text-slate-900 text-sm border border-slate-300 px-4 py-3 rounded-md outline-slate-800 pr-10"
+                      placeholder="Enter password"
+                 />
+  <button
+    type="button"
+    onClick={() => setShowPassword(!showPassword)}
+    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+  >
+    {showPassword ? (
+      // Eye-off SVG
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-5 0-9-4-9-9a9.96 9.96 0 013.327-7.406m3.548 3.548a3 3 0 104.242 4.242M6.338 6.338l11.324 11.324" />
+      </svg>
+    ) : (
+      // Eye SVG
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+      </svg>
+    )}
+  </button>
+</div>
+
+
+            {/* OPTIONS */}
+            <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center">
+                <input
+                  id="remember-me"
+                  type="checkbox"
+                  className="h-4 w-4 text-blue-600 border-slate-300 rounded"
+                />
+                <label htmlFor="remember-me" className="ml-2 text-slate-900">
+                  Remember me
+                </label>
               </div>
 
-              <div className="mt-12!">
-                <button type="button" className="w-full py-2 px-4 text-[15px] font-medium tracking-wide rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none cursor-pointer">
-                  Sign in
-                </button>
-              </div>
-              <p className="text-slate-900 text-sm mt-6! text-center">Don't have an account? <a href="javascript:void(0);" className="text-blue-600 hover:underline ml-1 whitespace-nowrap font-semibold">Register here</a></p>
-            </form>
-          </div>
+              <Link to="/forgot-password" className="text-blue-600 hover:underline font-semibold">
+                Forgot password?
+              </Link>
+            </div>
+
+            {/* BUTTON */}
+            <button
+              type="submit"
+              className="w-full py-2.5 text-[15px] font-medium rounded-md text-white bg-[#121e31] hover:bg-blue-700 transition"
+            >
+              Log in
+            </button>
+
+            {/* REGISTER */}
+            <p className="text-slate-900 text-sm text-center">
+              Don&apos;t have an account?
+              <Link to="/register" className="text-blue-600 hover:underline ml-1 font-semibold">
+                Register here
+              </Link>
+            </p>
+          </form>
         </div>
       </div>
-    );
+
+      <Footer />
+    </div>
+  );
 };
 
 export default LogIn;

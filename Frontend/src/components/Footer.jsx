@@ -1,10 +1,9 @@
-
 const Footer = () => {
-    return (
-        <div className="bg-blue-600 py-4 text-center text-white">
-                Copyright © 2026 | Shop Inventory Management | All rights reserved.
-        </div>
-    );
+  return (
+    <footer className="bg-[#121e31] py-4 text-center text-sm text-gray-300">
+      © 2026 Shop Inventory Management. All rights reserved.
+    </footer>
+  );
 };
 
 export default Footer;
