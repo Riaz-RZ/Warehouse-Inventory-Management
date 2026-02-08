@@ -30,12 +30,12 @@ const Sidebar = () => {
           </h2>
           <hr className="my-3 border-gray-600" />
 
-          <NavLink to="/addproduct" className={linkClass}>
+          <NavLink to="/dashboard/addproduct" className={linkClass}>
             <FiPlusSquare className="text-lg" />
             Add Product
           </NavLink>
 
-          <NavLink to="/myproducts" className={linkClass}>
+          <NavLink to="/dashboard/myproducts" className={linkClass}>
             <FiBox className="text-lg" />
             My Products
           </NavLink>
