@@ -6,6 +6,9 @@ import {
   FiBarChart2,
   FiUser,
   FiLogOut,
+  FiArrowDownCircle,
+  FiArrowUpCircle,
+  FiShuffle,
 } from "react-icons/fi";
 
 const Sidebar = () => {
@@ -20,7 +23,7 @@ const Sidebar = () => {
     `;
 
   return (
-    <aside className="bg-[#121e31] h-full w-65 m-2 rounded-lg border border-gray-700 px-3 py-6 overflow-y-auto">
+    <aside className="bg-[#121e31] w-65 m-2 rounded-lg border border-gray-700 px-3 py-6 overflow-y-auto">
       <ul className="space-y-6">
 
         {/* PRODUCTS */}
@@ -35,28 +38,34 @@ const Sidebar = () => {
             Add Product
           </NavLink>
 
-          <NavLink to="/dashboard/myproducts" className={linkClass}>
+          <NavLink to="/dashboard/allproducts" className={linkClass}>
             <FiBox className="text-lg" />
-            My Products
+            All Products
           </NavLink>
         </li>
 
-        {/* SALES */}
+        {/* Stock */}
         <li>
           <h2 className="text-gray-200 text-sm font-semibold uppercase tracking-wider px-2">
-            Manage Sales
+            Manage Stock
           </h2>
           <hr className="my-3 border-gray-600" />
 
-          <NavLink to="/newsale" className={linkClass}>
-            <FiShoppingCart className="text-lg" />
-            New Sale
-          </NavLink>
+          <NavLink to="/dashboard/stockin" className={linkClass}>
+  <FiArrowDownCircle className="text-lg" />
+  Stock In
+</NavLink>
 
-          <NavLink to="/viewsales" className={linkClass}>
-            <FiBarChart2 className="text-lg" />
-            View Sales
-          </NavLink>
+<NavLink to="/dashboard/stockout" className={linkClass}>
+  <FiArrowUpCircle className="text-lg" />
+  Stock Out
+</NavLink>
+
+<NavLink to="/dashboard/stocktransfer" className={linkClass}>
+  <FiShuffle className="text-lg" />
+  Stock Transfer
+</NavLink>
+
         </li>
 
         {/* ACCOUNT */}
@@ -66,7 +75,7 @@ const Sidebar = () => {
           </h2>
           <hr className="my-3 border-gray-600" />
 
-          <NavLink to="/profile" className={linkClass}>
+          <NavLink to="/dashboard/profile" className={linkClass}>
             <FiUser className="text-lg" />
             Profile
           </NavLink>
@@ -76,7 +85,6 @@ const Sidebar = () => {
             Logout
           </NavLink>
         </li>
-
       </ul>
     </aside>
   );

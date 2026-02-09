@@ -8,12 +8,12 @@ const Dashboard = () => {
   useCheckAuth();
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-screen flex flex-col">
       <Header />
 
-      <div className="flex grow">
+      <div className="flex grow overflow-hidden">
         <Sidebar />
-        <main className="grow p-6 bg-gray-100">
+        <main className="grow p-6 bg-gray-100 overflow-y-auto">
           <Outlet />
         </main>
       </div>

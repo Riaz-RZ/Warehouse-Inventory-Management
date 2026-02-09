@@ -108,14 +108,6 @@ const LogIn = () => {
             >
               Log in
             </button>
-
-            {/* REGISTER */}
-            <p className="text-slate-900 text-sm text-center">
-              Don&apos;t have an account?
-              <Link to="/register" className="text-blue-600 hover:underline ml-1 font-semibold">
-                Register here
-              </Link>
-            </p>
           </form>
         </div>
       </div>
