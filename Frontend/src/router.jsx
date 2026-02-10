@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router-dom";
+import { Navigate, createBrowserRouter } from "react-router-dom";
 import LogIn from "./pages/LogIn";
 import Dashboard from "./Layouts/Dashboard";
 import AddProduct from "./pages/AddProduct";
@@ -8,6 +8,26 @@ import StockIn from "./pages/StockIn";
 import StockOut from "./pages/StockOut";
 import StockTransfer from "./pages/StockTransfer";
 import Profile from "./pages/Profile";
+import ManageUsers from "./pages/ManageUsers";
+
+const getRoleFromStorage = () => {
+  const direct = localStorage.getItem("role");
+  if (direct) return direct;
+  try {
+    const admin = JSON.parse(localStorage.getItem("admin") || "null");
+    if (admin?.role) return admin.role;
+    const user = JSON.parse(localStorage.getItem("user") || "null");
+    return user?.role || "";
+  } catch {
+    return "";
+  }
+};
+
+const RequireAdmin = ({ children }) => {
+  const role = getRoleFromStorage();
+  if (role !== "Admin") return <Navigate to="/dashboard/stockin" replace />;
+  return children;
+};
 
 const router = createBrowserRouter([
   {
@@ -24,11 +44,23 @@ const router = createBrowserRouter([
     children: [
       {
         path: "/dashboard/addproduct",
-        element: <AddProduct />,
+        element: (
+          <RequireAdmin>
+            <AddProduct />
+          </RequireAdmin>
+        ),
       },
       {
         path: "/dashboard/allproducts",
         element: <AllProducts />,
+      },
+      {
+        path: "/dashboard/manage-users",
+        element: (
+          <RequireAdmin>
+            <ManageUsers />
+          </RequireAdmin>
+        ),
       },
       {
         path: "/dashboard/stockin",

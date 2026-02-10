@@ -17,7 +17,10 @@
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
         "start": "node server.js",
-        "dev": "nodemon server.js"
+        "dev": "nodemon server.js",
+        "migrate:remove-stock-fields": "node scripts/unsetStockFields.js",
+        "migrate:set-stock-default": "node scripts/setStockDefault.js",
+        "migrate:sku-warehouse-index": "node scripts/migrateSkuWarehouseUniqueIndex.js"
     },
     "keywords": [],
     "author": "",

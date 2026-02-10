@@ -7,9 +7,9 @@ const useCheckAuth = () => {
     const navigate = useNavigate();
 
     useEffect(() => {
-        const loggedIn = localStorage.getItem("loggedIn");
-        if (!loggedIn) {
-            navigate("/login");
+        const token = localStorage.getItem("authToken");
+        if (!token) {
+            navigate("/");
         }
     }, [navigate]);
 }

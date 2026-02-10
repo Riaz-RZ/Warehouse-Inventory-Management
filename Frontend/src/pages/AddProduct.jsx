@@ -1,6 +1,7 @@
 import { useState } from "react";
 import PropTypes from "prop-types";
 import { FiAlertCircle, FiCheckCircle } from "react-icons/fi";
+import axios from "axios";
 
 const CATEGORIES = [
   "Electronics",
@@ -17,14 +18,25 @@ const UNITS = ["Piece", "Box", "Kg", "Liter", "Meter", "Dozen", "Pack"];
 
 const WAREHOUSES = ["Warehouse A", "Warehouse B", "Warehouse C", "Warehouse D"];
 
-const AddProduct = ({ onSubmit = () => {} }) => {
+const DEFAULT_API_BASE = "http://localhost:4000/api";
+
+const defaultOnSubmit = async (payload) => {
+  const token = localStorage.getItem("authToken") || "";
+  const headers = { Authorization: `Bearer ${token}` };
+  const res = await axios.post(`${DEFAULT_API_BASE}/products`, payload, { headers });
+  if (!res?.data?.success) {
+    const message = res?.data?.message || "Failed to add product";
+    throw new Error(message);
+  }
+  return res.data;
+};
+
+const AddProduct = ({ onSubmit = defaultOnSubmit }) => {
   const [formData, setFormData] = useState({
     name: "",
     sku: "",
     category: "",
     unit: "",
-    stock: "",
-    minStock: "",
     warehouse: "",
   });
 
@@ -39,10 +51,6 @@ const AddProduct = ({ onSubmit = () => {} }) => {
     if (!formData.sku.trim()) newErrors.sku = "SKU is required";
     if (!formData.category) newErrors.category = "Category is required";
     if (!formData.unit) newErrors.unit = "Unit is required";
-    if (!formData.stock || formData.stock < 0)
-      newErrors.stock = "Stock must be a valid number";
-    if (!formData.minStock || formData.minStock < 0)
-      newErrors.minStock = "Min stock must be a valid number";
     if (!formData.warehouse) newErrors.warehouse = "Warehouse is required";
 
     setErrors(newErrors);
@@ -75,8 +83,6 @@ const AddProduct = ({ onSubmit = () => {} }) => {
     try {
       await onSubmit({
         ...formData,
-        stock: parseInt(formData.stock),
-        minStock: parseInt(formData.minStock),
       });
 
       setFormData({
@@ -84,15 +90,15 @@ const AddProduct = ({ onSubmit = () => {} }) => {
         sku: "",
         category: "",
         unit: "",
-        stock: "",
-        minStock: "",
         warehouse: "",
       });
 
       setSuccessMessage("Product added successfully!");
       setTimeout(() => setSuccessMessage(""), 3000);
     } catch (error) {
-      setErrors({ submit: error.message || "Failed to add product" });
+      const message =
+        error?.response?.data?.message || error?.message || "Failed to add product";
+      setErrors({ submit: message });
     } finally {
       setLoading(false);
     }
@@ -213,48 +219,6 @@ const AddProduct = ({ onSubmit = () => {} }) => {
             )}
           </div>
 
-          {/* Stock */}
-          <div>
-            <label htmlFor="stock" className={labelClasses}>
-              Stock Quantity <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="stock"
-              type="number"
-              name="stock"
-              value={formData.stock}
-              onChange={handleChange}
-              placeholder="0"
-              min="0"
-              className={inputClasses}
-              disabled={loading}
-            />
-            {errors.stock && (
-              <p className="text-red-500 text-sm mt-1">{errors.stock}</p>
-            )}
-          </div>
-
-          {/* Minimum Stock */}
-          <div>
-            <label htmlFor="minStock" className={labelClasses}>
-              Minimum Stock Level <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="minStock"
-              type="number"
-              name="minStock"
-              value={formData.minStock}
-              onChange={handleChange}
-              placeholder="0"
-              min="0"
-              className={inputClasses}
-              disabled={loading}
-            />
-            {errors.minStock && (
-              <p className="text-red-500 text-sm mt-1">{errors.minStock}</p>
-            )}
-          </div>
-
           {/* Warehouse */}
           <div className="md:col-span-2">
             <label htmlFor="warehouse" className={labelClasses}>
@@ -298,8 +262,6 @@ const AddProduct = ({ onSubmit = () => {} }) => {
                 sku: "",
                 category: "",
                 unit: "",
-                stock: "",
-                minStock: "",
                 warehouse: "",
               });
               setErrors({});
