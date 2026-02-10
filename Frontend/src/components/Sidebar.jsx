@@ -9,9 +9,22 @@ import {
   FiArrowDownCircle,
   FiArrowUpCircle,
   FiShuffle,
+  FiUsers,
 } from "react-icons/fi";
 
 const Sidebar = () => {
+  const role = localStorage.getItem("role") || (() => {
+    try {
+      const admin = JSON.parse(localStorage.getItem("admin") || "null");
+      if (admin?.role) return admin.role;
+      const user = JSON.parse(localStorage.getItem("user") || "null");
+      return user?.role || "";
+    } catch {
+      return "";
+    }
+  })();
+  const isAdmin = role === "Admin";
+
   const linkClass = ({ isActive }) =>
     `
     group flex items-center gap-3 px-4 py-2 text-[15px] rounded-md transition-all
@@ -33,16 +46,33 @@ const Sidebar = () => {
           </h2>
           <hr className="my-3 border-gray-600" />
 
-          <NavLink to="/dashboard/addproduct" className={linkClass}>
-            <FiPlusSquare className="text-lg" />
-            Add Product
-          </NavLink>
+          {isAdmin && (
+            <NavLink to="/dashboard/addproduct" className={linkClass}>
+              <FiPlusSquare className="text-lg" />
+              Add Product
+            </NavLink>
+          )}
 
           <NavLink to="/dashboard/allproducts" className={linkClass}>
             <FiBox className="text-lg" />
             All Products
           </NavLink>
         </li>
+
+        {/* USERS */}
+        {isAdmin && (
+          <li>
+            <h2 className="text-gray-200 text-sm font-semibold uppercase tracking-wider px-2">
+              Manage Users
+            </h2>
+            <hr className="my-3 border-gray-600" />
+
+            <NavLink to="/dashboard/manage-users" className={linkClass}>
+              <FiUsers className="text-lg" />
+              Manage Users
+            </NavLink>
+          </li>
+        )}
 
         {/* Stock */}
         <li>

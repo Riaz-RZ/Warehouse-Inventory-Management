@@ -1,67 +1,74 @@
-import { useState } from "react";
-import PropTypes from "prop-types";
-import { FiCheckCircle, FiAlertCircle, FiTrash2 } from "react-icons/fi";
+import { useEffect, useMemo, useState } from "react";
+import { FiCheckCircle, FiAlertCircle } from "react-icons/fi";
+import axios from "axios";
 
-const StockIn = ({ products = [], onAddStock = () => {}, transactions = [] }) => {
+const DEFAULT_API_BASE = "http://localhost:4000/api";
+const WAREHOUSES = ["Warehouse A", "Warehouse B", "Warehouse C", "Warehouse D"];
+
+const StockIn = () => {
+  const token = localStorage.getItem("authToken") || "";
+  const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
   const [formData, setFormData] = useState({
+    warehouse: "",
     productId: "",
     quantity: "",
-    reference: "",
-    notes: "",
   });
+
+  const [products, setProducts] = useState([]);
+  const [productSearchInput, setProductSearchInput] = useState("");
+  const [productSearch, setProductSearch] = useState("");
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-  const [filteredProducts, setFilteredProducts] = useState([]);
-  const [showDropdown, setShowDropdown] = useState(false);
+
+  const limit = 100;
+  const queryParams = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    params.set("limit", String(limit));
+    if (productSearch) params.set("search", productSearch);
+    return params.toString();
+  }, [limit, productSearch]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchProducts = async () => {
+      setLoading(true);
+      setErrors((prev) => ({ ...prev, submit: undefined }));
+      try {
+        const res = await axios.get(`${DEFAULT_API_BASE}/products?${queryParams}`, { headers });
+        if (cancelled) return;
+        if (!res?.data?.success) {
+          throw new Error(res?.data?.message || "Failed to load products");
+        }
+        setProducts(res.data.data || []);
+      } catch (err) {
+        if (cancelled) return;
+        const message =
+          err?.response?.data?.message || err?.message || "Failed to load products";
+        setErrors({ submit: message });
+        setProducts([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    fetchProducts();
+    return () => {
+      cancelled = true;
+    };
+  }, [queryParams]);
 
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.productId)
-      newErrors.productId = "Please select a product";
-    if (!formData.quantity || formData.quantity <= 0)
+    if (!formData.warehouse) newErrors.warehouse = "Warehouse is required";
+    if (!formData.productId) newErrors.productId = "Please select a product";
+    if (!formData.quantity || Number(formData.quantity) <= 0)
       newErrors.quantity = "Quantity must be greater than 0";
-    if (!formData.reference.trim())
-      newErrors.reference = "Reference is required";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
-
-  const handleProductSearch = (value) => {
-    if (!value) {
-      setFilteredProducts([]);
-      setShowDropdown(false);
-      return;
-    }
-
-    const filtered = products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(value.toLowerCase()) ||
-        p.sku.toLowerCase().includes(value.toLowerCase())
-    );
-
-    setFilteredProducts(filtered);
-    setShowDropdown(true);
-  };
-
-  const handleSelectProduct = (product) => {
-    setFormData((prev) => ({
-      ...prev,
-      productId: product._id,
-    }));
-    setShowDropdown(false);
-    setFilteredProducts([]);
-
-    if (errors.productId) {
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors.productId;
-        return newErrors;
-      });
-    }
   };
 
   const handleChange = (e) => {
@@ -89,28 +96,32 @@ const StockIn = ({ products = [], onAddStock = () => {}, transactions = [] }) =>
     setSuccessMessage("");
 
     try {
-      const selectedProduct = products.find(p => p._id === formData.productId);
+      const quantity = parseInt(formData.quantity, 10);
+      const res = await axios.post(
+        `${DEFAULT_API_BASE}/products/${formData.productId}/stock-in`,
+        { quantity },
+        { headers }
+      );
 
-      await onAddStock({
-        productId: formData.productId,
-        productName: selectedProduct?.name,
-        quantity: parseInt(formData.quantity),
-        reference: formData.reference,
-        notes: formData.notes,
-        date: new Date().toISOString(),
-      });
+      if (!res?.data?.success) {
+        throw new Error(res?.data?.message || "Failed to add stock");
+      }
 
       setFormData({
         productId: "",
         quantity: "",
-        reference: "",
-        notes: "",
       });
 
       setSuccessMessage("Stock added successfully!");
       setTimeout(() => setSuccessMessage(""), 3000);
+
+      // Refresh product list so the updated stock is visible
+      const refresh = await axios.get(`${DEFAULT_API_BASE}/products?${queryParams}`, { headers });
+      if (refresh?.data?.success) setProducts(refresh.data.data || []);
     } catch (error) {
-      setErrors({ submit: error.message || "Failed to add stock" });
+      const message =
+        error?.response?.data?.message || error?.message || "Failed to add stock";
+      setErrors({ submit: message });
     } finally {
       setLoading(false);
     }
@@ -121,6 +132,9 @@ const StockIn = ({ products = [], onAddStock = () => {}, transactions = [] }) =>
   };
 
   const selectedProduct = getSelectedProduct();
+  const productsForWarehouse = formData.warehouse
+    ? products.filter((p) => p.warehouse === formData.warehouse)
+    : [];
   const inputClasses =
     "w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition";
   const labelClasses = "block text-sm font-medium text-gray-700 mb-2";
@@ -147,47 +161,111 @@ const StockIn = ({ products = [], onAddStock = () => {}, transactions = [] }) =>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Product Selection */}
-            <div className="relative">
-              <label htmlFor="product" className={labelClasses}>
-                Product <span className="text-red-500">*</span>
+            {/* Warehouse */}
+            <div>
+              <label htmlFor="warehouse" className={labelClasses}>
+                Warehouse <span className="text-red-500">*</span>
               </label>
-              <input
-                id="product"
-                type="text"
-                placeholder="Search product by name or SKU"
-                onChange={(e) => handleProductSearch(e.target.value)}
-                onFocus={() => setShowDropdown(filteredProducts.length > 0)}
+              <select
+                id="warehouse"
+                name="warehouse"
+                value={formData.warehouse}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFormData((prev) => ({
+                    ...prev,
+                    warehouse: value,
+                    productId: "",
+                  }));
+                  setErrors((prev) => {
+                    const next = { ...prev };
+                    delete next.warehouse;
+                    delete next.productId;
+                    return next;
+                  });
+                }}
                 className={inputClasses}
                 disabled={loading}
-              />
-
-              {showDropdown && filteredProducts.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-56 overflow-y-auto">
-                  {filteredProducts.map((product) => (
-                    <button
-                      key={product._id}
-                      type="button"
-                      onClick={() => handleSelectProduct(product)}
-                      className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b last:border-b-0 transition"
-                    >
-                      <div className="font-medium">{product.name}</div>
-                      <div className="text-sm text-gray-600">
-                        SKU: {product.sku} | Stock: {product.stock}
-                      </div>
-                    </button>
-                  ))}
-                </div>
+              >
+                <option value="">Select a warehouse</option>
+                {WAREHOUSES.map((wh) => (
+                  <option key={wh} value={wh}>
+                    {wh}
+                  </option>
+                ))}
+              </select>
+              {errors.warehouse && (
+                <p className="text-red-500 text-sm mt-1">{errors.warehouse}</p>
               )}
+            </div>
+
+            {/* Product Search */}
+            <div>
+              <label htmlFor="productSearch" className={labelClasses}>
+                Find Product
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="productSearch"
+                  type="text"
+                  value={productSearchInput}
+                  onChange={(e) => setProductSearchInput(e.target.value)}
+                  placeholder="Search by name or SKU"
+                  className={inputClasses}
+                  disabled={loading || !formData.warehouse}
+                />
+                <button
+                  type="button"
+                  disabled={loading || !formData.warehouse}
+                  onClick={() => {
+                    setProductSearch(productSearchInput.trim());
+                    setFormData((prev) => ({ ...prev, productId: "" }));
+                    setErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.productId;
+                      return next;
+                    });
+                  }}
+                  className="bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  Search
+                </button>
+              </div>
+              {!formData.warehouse && (
+                <p className="text-sm text-gray-500 mt-1">
+                  Select a warehouse to search products.
+                </p>
+              )}
+            </div>
+
+            {/* Product Selection */}
+            <div>
+              <label htmlFor="productId" className={labelClasses}>
+                Select Product <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="productId"
+                name="productId"
+                value={formData.productId}
+                onChange={handleChange}
+                className={inputClasses}
+                disabled={loading || !formData.warehouse}
+              >
+                <option value="">Select a product</option>
+                {productsForWarehouse.map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {p.name} ({p.sku})
+                  </option>
+                ))}
+              </select>
 
               {selectedProduct && (
                 <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-                  <p className="font-medium text-blue-900">
-                    {selectedProduct.name}
-                  </p>
+                  <p className="font-medium text-blue-900">{selectedProduct.name}</p>
                   <p className="text-blue-700">
-                    Current Stock: {selectedProduct.stock} {selectedProduct.unit}
+                    Current Stock: {selectedProduct.stock ?? 0} {selectedProduct.unit}
                   </p>
+                  <p className="text-blue-700">Warehouse: {selectedProduct.warehouse}</p>
                 </div>
               )}
 
@@ -216,43 +294,6 @@ const StockIn = ({ products = [], onAddStock = () => {}, transactions = [] }) =>
                 <p className="text-red-500 text-sm mt-1">{errors.quantity}</p>
               )}
             </div>
-
-            {/* Reference */}
-            <div>
-              <label htmlFor="reference" className={labelClasses}>
-                Reference/Invoice No <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="reference"
-                type="text"
-                name="reference"
-                value={formData.reference}
-                onChange={handleChange}
-                placeholder="e.g., INV-001, PO-2024-001"
-                className={inputClasses}
-                disabled={loading}
-              />
-              {errors.reference && (
-                <p className="text-red-500 text-sm mt-1">{errors.reference}</p>
-              )}
-            </div>
-
-            {/* Notes */}
-            <div>
-              <label htmlFor="notes" className={labelClasses}>
-                Notes (Optional)
-              </label>
-              <input
-                id="notes"
-                type="text"
-                name="notes"
-                value={formData.notes}
-                onChange={handleChange}
-                placeholder="e.g., Store opening stock, supplier delivery"
-                className={inputClasses}
-                disabled={loading}
-              />
-            </div>
           </div>
 
           {/* Submit Button */}
@@ -268,11 +309,12 @@ const StockIn = ({ products = [], onAddStock = () => {}, transactions = [] }) =>
               type="button"
               onClick={() => {
                 setFormData({
+                  warehouse: "",
                   productId: "",
                   quantity: "",
-                  reference: "",
-                  notes: "",
                 });
+                setProductSearchInput("");
+                setProductSearch("");
                 setErrors({});
               }}
               disabled={loading}
@@ -283,69 +325,8 @@ const StockIn = ({ products = [], onAddStock = () => {}, transactions = [] }) =>
           </div>
         </form>
       </div>
-
-      {/* Recent Transactions */}
-      {transactions.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-xl font-semibold mb-4">Recent Stock In Transactions</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-100 text-gray-700">
-                  <th className="px-4 py-2 border-b">Product</th>
-                  <th className="px-4 py-2 border-b">Quantity</th>
-                  <th className="px-4 py-2 border-b">Reference</th>
-                  <th className="px-4 py-2 border-b">Date</th>
-                  <th className="px-4 py-2 border-b">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((transaction) => (
-                  <tr key={transaction.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2">{transaction.productName}</td>
-                    <td className="px-4 py-2 font-semibold text-green-600">
-                      +{transaction.quantity}
-                    </td>
-                    <td className="px-4 py-2">{transaction.reference}</td>
-                    <td className="px-4 py-2 text-sm text-gray-600">
-                      {new Date(transaction.date).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-2">
-                      <button className="text-red-600 hover:text-red-800 transition-colors">
-                        <FiTrash2 />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   );
-};
-
-StockIn.propTypes = {
-  products: PropTypes.arrayOf(
-    PropTypes.shape({
-      _id: PropTypes.string.isRequired,
-      name: PropTypes.string.isRequired,
-      sku: PropTypes.string.isRequired,
-      stock: PropTypes.number.isRequired,
-      unit: PropTypes.string.isRequired,
-    })
-  ),
-  onAddStock: PropTypes.func,
-  transactions: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.string.isRequired,
-      productName: PropTypes.string.isRequired,
-      quantity: PropTypes.number.isRequired,
-      reference: PropTypes.string.isRequired,
-      date: PropTypes.string.isRequired,
-    })
-  ),
 };
 
 export default StockIn;

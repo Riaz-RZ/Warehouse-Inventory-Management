@@ -9,18 +9,34 @@ const LogIn = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     // http://localhost:4000/api/login
     try {
+      setErrorMessage("");
       const response = await axios.post("http://localhost:4000/api/login", { email, password });
       if(response.data.success === true) {
+        if (response.data.token) {
+          localStorage.setItem("authToken", response.data.token);
+        }
+        if (response.data.user) {
+          localStorage.setItem("user", JSON.stringify(response.data.user));
+          localStorage.setItem("role", response.data.user.role || "User");
+        }
+        if (response.data.admin) {
+          localStorage.setItem("admin", JSON.stringify(response.data.admin));
+        }
         localStorage.setItem("loggedIn", "true");
         navigate("/dashboard");
       }
     } catch (error) {
-      console.error("Login error:", error);
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Login failed";
+      setErrorMessage(message);
     }
   }
   return (
@@ -32,6 +48,12 @@ const LogIn = () => {
           <h1 className="text-slate-900 text-center text-3xl font-semibold">
             Log in
           </h1>
+
+          {errorMessage && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+              {errorMessage}
+            </div>
+          )}
 
           <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
             {/* EMAIL */}

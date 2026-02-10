@@ -1,30 +1,36 @@
-import { useState } from "react";
-import PropTypes from "prop-types";
+import { useEffect, useMemo, useState } from "react";
 import {
   FiUser,
   FiMail,
-  FiPhone,
   FiLock,
   FiEdit2,
-  FiCheck,
   FiX,
+  FiCheck,
   FiAlertCircle,
   FiCheckCircle,
 } from "react-icons/fi";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
-const Profile = ({ user = {}, onUpdate = () => {}, onChangePassword = () => {} }) => {
+const DEFAULT_API_BASE = "http://localhost:4000/api";
+
+const Profile = () => {
+  const navigate = useNavigate();
+
+  const [admin, setAdmin] = useState(null);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+
   const [editMode, setEditMode] = useState(false);
   const [passwordMode, setPasswordMode] = useState(false);
-  const [loading, setLoading] = useState(false);
+
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("");
+  const [errors, setErrors] = useState({});
 
-  const [editData, setEditData] = useState({
-    name: user.name || "",
-    email: user.email || "",
-    phone: user.phone || "",
-    department: user.department || "",
-  });
+  const [editData, setEditData] = useState({ name: "", email: "" });
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState("");
 
   const [passwordData, setPasswordData] = useState({
     currentPassword: "",
@@ -32,7 +38,11 @@ const Profile = ({ user = {}, onUpdate = () => {}, onChangePassword = () => {} }
     confirmPassword: "",
   });
 
-  const [errors, setErrors] = useState({});
+  const token = useMemo(() => localStorage.getItem("authToken") || "", []);
+  const authHeaders = useMemo(
+    () => ({ Authorization: `Bearer ${token}` }),
+    [token]
+  );
 
   const showMessage = (msg, type) => {
     setMessage(msg);
@@ -40,80 +50,132 @@ const Profile = ({ user = {}, onUpdate = () => {}, onChangePassword = () => {} }
     setTimeout(() => setMessage(""), 3000);
   };
 
-  const validateEditForm = () => {
-    const newErrors = {};
+  useEffect(() => {
+    let cancelled = false;
 
-    if (!editData.name.trim()) newErrors.name = "Name is required";
-    if (!editData.email.trim()) newErrors.email = "Email is required";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editData.email))
-      newErrors.email = "Invalid email format";
-    if (!editData.phone.trim()) newErrors.phone = "Phone is required";
+    const load = async () => {
+      if (!token) {
+        navigate("/");
+        return;
+      }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+      setPageLoading(true);
+      try {
+        const res = await axios.get(`${DEFAULT_API_BASE}/me`, {
+          headers: authHeaders,
+        });
 
-  const validatePasswordForm = () => {
-    const newErrors = {};
+        if (cancelled) return;
+        if (!res?.data?.success) {
+          throw new Error(res?.data?.message || "Failed to load profile");
+        }
 
-    if (!passwordData.currentPassword)
-      newErrors.currentPassword = "Current password is required";
-    if (!passwordData.newPassword)
-      newErrors.newPassword = "New password is required";
-    if (passwordData.newPassword.length < 6)
-      newErrors.newPassword = "Password must be at least 6 characters";
-    if (passwordData.newPassword !== passwordData.confirmPassword)
-      newErrors.confirmPassword = "Passwords do not match";
+        const a = res.data.user;
+        setAdmin(a);
+        setEditData({ name: a?.name || "", email: a?.email || "" });
+        setAvatarPreview(a?.avatarPath ? `http://localhost:4000${a.avatarPath}` : "");
+      } catch (e) {
+        if (cancelled) return;
+        const status = e?.response?.status;
+        if (status === 401) {
+          localStorage.removeItem("authToken");
+          localStorage.removeItem("admin");
+          localStorage.removeItem("user");
+          localStorage.removeItem("role");
+          localStorage.removeItem("loggedIn");
+          navigate("/");
+          return;
+        }
+        showMessage(
+          e?.response?.data?.message || e?.message || "Failed to load profile",
+          "error"
+        );
+      } finally {
+        if (!cancelled) setPageLoading(false);
+      }
+    };
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [authHeaders, navigate, token]);
 
-  const handleEditChange = (e) => {
-    const { name, value } = e.target;
-    setEditData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-
-    if (errors[name]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
+  const validateProfile = () => {
+    const next = {};
+    if (!editData.name.trim()) next.name = "Name is required";
+    if (!editData.email.trim()) next.email = "Email is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editData.email)) {
+      next.email = "Invalid email format";
     }
+    setErrors(next);
+    return Object.keys(next).length === 0;
   };
 
-  const handlePasswordChange = (e) => {
-    const { name, value } = e.target;
-    setPasswordData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-
-    if (errors[name]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
+  const validatePassword = () => {
+    const next = {};
+    if (!passwordData.currentPassword) next.currentPassword = "Current password is required";
+    if (!passwordData.newPassword) next.newPassword = "New password is required";
+    if (passwordData.newPassword && passwordData.newPassword.length < 6) {
+      next.newPassword = "Password must be at least 6 characters";
     }
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      next.confirmPassword = "Passwords do not match";
+    }
+    setErrors(next);
+    return Object.keys(next).length === 0;
   };
 
-  const handleUpdateProfile = async (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
-
-    if (!validateEditForm()) return;
+    if (!validateProfile()) return;
 
     setLoading(true);
-
     try {
-      await onUpdate(editData);
+      const form = new FormData();
+      form.append("name", editData.name);
+      form.append("email", editData.email);
+      if (avatarFile) form.append("avatar", avatarFile);
+
+      const res = await axios.patch(`${DEFAULT_API_BASE}/me`, form, {
+        headers: authHeaders,
+      });
+
+      if (!res?.data?.success) {
+        throw new Error(res?.data?.message || "Failed to update profile");
+      }
+
+      const updated = res.data.user || res.data.admin;
+      if (!updated) {
+        throw new Error("Failed to update profile");
+      }
+      setAdmin(updated);
+      setAvatarFile(null);
+      setAvatarPreview(updated?.avatarPath ? `http://localhost:4000${updated.avatarPath}` : "");
+
+      const payload = {
+        id: String(updated?._id || updated?.id || ""),
+        name: updated?.name,
+        email: updated?.email,
+        role: updated?.role,
+        avatarPath: updated?.avatarPath || "",
+      };
+
+      localStorage.setItem("user", JSON.stringify(payload));
+      if (payload.role) localStorage.setItem("role", payload.role);
+
+      // Backward compatibility for older code paths
+      if (payload.role === "Admin") {
+        localStorage.setItem("admin", JSON.stringify(payload));
+      }
+
       showMessage("Profile updated successfully!", "success");
       setEditMode(false);
-    } catch (error) {
-      showMessage(error.message || "Failed to update profile", "error");
+    } catch (e2) {
+      showMessage(
+        e2?.response?.data?.message || e2?.message || "Failed to update profile",
+        "error"
+      );
     } finally {
       setLoading(false);
     }
@@ -121,27 +183,31 @@ const Profile = ({ user = {}, onUpdate = () => {}, onChangePassword = () => {} }
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
-
-    if (!validatePasswordForm()) return;
+    if (!validatePassword()) return;
 
     setLoading(true);
-
     try {
-      await onChangePassword({
-        currentPassword: passwordData.currentPassword,
-        newPassword: passwordData.newPassword,
-      });
+      const res = await axios.patch(
+        `${DEFAULT_API_BASE}/me/password`,
+        {
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword,
+        },
+        { headers: authHeaders }
+      );
 
-      setPasswordData({
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      });
+      if (!res?.data?.success) {
+        throw new Error(res?.data?.message || "Failed to change password");
+      }
 
+      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
       showMessage("Password changed successfully!", "success");
       setPasswordMode(false);
-    } catch (error) {
-      showMessage(error.message || "Failed to change password", "error");
+    } catch (e2) {
+      showMessage(
+        e2?.response?.data?.message || e2?.message || "Failed to change password",
+        "error"
+      );
     } finally {
       setLoading(false);
     }
@@ -151,9 +217,10 @@ const Profile = ({ user = {}, onUpdate = () => {}, onChangePassword = () => {} }
     "w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition";
   const labelClasses = "block text-sm font-medium text-gray-700 mb-2";
 
+  const displayInitial = (admin?.name || "U").charAt(0).toUpperCase();
+
   return (
     <div className="space-y-6">
-      {/* Message Alert */}
       {message && (
         <div
           className={`p-4 rounded-lg flex items-center gap-3 ${
@@ -167,53 +234,52 @@ const Profile = ({ user = {}, onUpdate = () => {}, onChangePassword = () => {} }
           ) : (
             <FiAlertCircle className="text-red-600 text-xl shrink-0" />
           )}
-          <p
-            className={
-              messageType === "success"
-                ? "text-green-700"
-                : "text-red-700"
-            }
-          >
+          <p className={messageType === "success" ? "text-green-700" : "text-red-700"}>
             {message}
           </p>
         </div>
       )}
 
-      {/* Profile Header Card */}
       <div className="bg-white rounded-lg shadow-sm p-8">
-        <div className="flex items-center gap-6 mb-6">
-          <div className="w-20 h-20 bg-linear-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white text-3xl font-bold">
-            {user.name?.charAt(0).toUpperCase() || "U"}
+        {pageLoading ? (
+          <p className="text-gray-600">Loading profile...</p>
+        ) : (
+          <div className="flex items-center gap-6">
+            <div className="w-20 h-20 rounded-full overflow-hidden bg-linear-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-3xl font-bold">
+              {avatarPreview ? (
+                <img src={avatarPreview} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                displayInitial
+              )}
+            </div>
+            <div>
+              <h2 className="text-3xl font-bold text-gray-800">{admin?.name || "User"}</h2>
+              <p className="text-gray-600">{admin?.role || "User"}</p>
+              <p className="text-sm text-gray-500">
+                Member since {admin?.createdAt ? new Date(admin.createdAt).toLocaleDateString() : "N/A"}
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-3xl font-bold text-gray-800">{user.name || "User"}</h2>
-            <p className="text-gray-600">{user.role || "User"}</p>
-            <p className="text-sm text-gray-500">
-              Member since {user.joinDate ? new Date(user.joinDate).toLocaleDateString() : "N/A"}
-            </p>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Edit Profile Section */}
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-xl font-semibold">Profile Information</h3>
           <button
             onClick={() => {
-              setEditMode(!editMode);
               if (editMode) {
+                setEditMode(false);
                 setErrors({});
               } else {
-                setEditData({
-                  name: user.name || "",
-                  email: user.email || "",
-                  phone: user.phone || "",
-                  department: user.department || "",
-                });
+                setEditData({ name: admin?.name || "", email: admin?.email || "" });
+                setAvatarFile(null);
+                setAvatarPreview(admin?.avatarPath ? `http://localhost:4000${admin.avatarPath}` : "");
+                setEditMode(true);
               }
             }}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            disabled={pageLoading}
           >
             {editMode ? (
               <>
@@ -228,8 +294,37 @@ const Profile = ({ user = {}, onUpdate = () => {}, onChangePassword = () => {} }
         </div>
 
         {editMode ? (
-          <form onSubmit={handleUpdateProfile} className="space-y-4">
+          <form onSubmit={handleSaveProfile} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label htmlFor="avatar" className={labelClasses}>
+                  Profile Picture
+                </label>
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+                    {avatarPreview ? (
+                      <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-gray-600 font-semibold">{displayInitial}</span>
+                    )}
+                  </div>
+                  <input
+                    id="avatar"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setAvatarFile(file);
+                      setAvatarPreview(URL.createObjectURL(file));
+                    }}
+                    className="block w-full text-sm text-gray-700"
+                    disabled={loading}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">JPG/PNG/WEBP up to 2MB.</p>
+              </div>
+
               <div>
                 <label htmlFor="name" className={labelClasses}>
                   <FiUser className="inline mr-2" /> Full Name
@@ -237,15 +332,15 @@ const Profile = ({ user = {}, onUpdate = () => {}, onChangePassword = () => {} }
                 <input
                   id="name"
                   type="text"
-                  name="name"
                   value={editData.name}
-                  onChange={handleEditChange}
+                  onChange={(e) => {
+                    setEditData((p) => ({ ...p, name: e.target.value }));
+                    if (errors.name) setErrors((prev) => ({ ...prev, name: undefined }));
+                  }}
                   className={inputClasses}
                   disabled={loading}
                 />
-                {errors.name && (
-                  <p className="text-red-500 text-sm mt-1">{errors.name}</p>
-                )}
+                {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
               </div>
 
               <div>
@@ -255,67 +350,25 @@ const Profile = ({ user = {}, onUpdate = () => {}, onChangePassword = () => {} }
                 <input
                   id="email"
                   type="email"
-                  name="email"
                   value={editData.email}
-                  onChange={handleEditChange}
+                  onChange={(e) => {
+                    setEditData((p) => ({ ...p, email: e.target.value }));
+                    if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }));
+                  }}
                   className={inputClasses}
                   disabled={loading}
                 />
-                {errors.email && (
-                  <p className="text-red-500 text-sm mt-1">{errors.email}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="phone" className={labelClasses}>
-                  <FiPhone className="inline mr-2" /> Phone
-                </label>
-                <input
-                  id="phone"
-                  type="tel"
-                  name="phone"
-                  value={editData.phone}
-                  onChange={handleEditChange}
-                  className={inputClasses}
-                  disabled={loading}
-                />
-                {errors.phone && (
-                  <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="department" className={labelClasses}>
-                  Department
-                </label>
-                <input
-                  id="department"
-                  type="text"
-                  name="department"
-                  value={editData.department}
-                  onChange={handleEditChange}
-                  placeholder="Inventory Management"
-                  className={inputClasses}
-                  disabled={loading}
-                />
+                {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
               </div>
             </div>
 
-            <div className="flex gap-4 pt-4">
+            <div className="flex gap-4 pt-2">
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white py-2 px-6 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:bg-gray-400"
+                className="flex items-center justify-center gap-2 bg-green-600 text-white py-2 px-6 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:bg-gray-400"
               >
                 <FiCheck /> Save Changes
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditMode(false)}
-                disabled={loading}
-                className="flex-1 bg-gray-200 text-gray-700 py-2 px-6 rounded-lg font-medium hover:bg-gray-300 transition-colors"
-              >
-                Cancel
               </button>
             </div>
           </form>
@@ -325,156 +378,108 @@ const Profile = ({ user = {}, onUpdate = () => {}, onChangePassword = () => {} }
               <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
                 <FiUser /> Full Name
               </p>
-              <p className="text-lg font-semibold text-gray-800">{user.name || "N/A"}</p>
+              <p className="text-lg font-semibold text-gray-800">{admin?.name || "N/A"}</p>
             </div>
             <div>
               <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
                 <FiMail /> Email
               </p>
-              <p className="text-lg font-semibold text-gray-800">{user.email || "N/A"}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 mb-1 flex items-center gap-2">
-                <FiPhone /> Phone
-              </p>
-              <p className="text-lg font-semibold text-gray-800">{user.phone || "N/A"}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Department</p>
-              <p className="text-lg font-semibold text-gray-800">
-                {user.department || "N/A"}
-              </p>
+              <p className="text-lg font-semibold text-gray-800">{admin?.email || "N/A"}</p>
             </div>
           </div>
         )}
       </div>
 
-      {/* Change Password Section */}
       <div className="bg-white rounded-lg shadow-sm p-6">
         <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-semibold flex items-center gap-2">
-            <FiLock /> Change Password
-          </h3>
+          <h3 className="text-xl font-semibold">Password</h3>
           <button
             onClick={() => {
-              setPasswordMode(!passwordMode);
-              if (passwordMode) {
-                setErrors({});
-              } else {
-                setPasswordData({
-                  currentPassword: "",
-                  newPassword: "",
-                  confirmPassword: "",
-                });
-              }
+              setPasswordMode((v) => !v);
+              setErrors({});
+              setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
             }}
-            className="text-blue-600 hover:text-blue-800 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
+            disabled={pageLoading}
           >
-            {passwordMode ? "Cancel" : "Change Password"}
+            <FiLock /> {passwordMode ? "Cancel" : "Change Password"}
           </button>
         </div>
 
-        {passwordMode ? (
-          <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
-            <div>
-              <label htmlFor="currentPassword" className={labelClasses}>
-                Current Password
-              </label>
-              <input
-                id="currentPassword"
-                type="password"
-                name="currentPassword"
-                value={passwordData.currentPassword}
-                onChange={handlePasswordChange}
-                className={inputClasses}
-                disabled={loading}
-              />
-              {errors.currentPassword && (
-                <p className="text-red-500 text-sm mt-1">
-                  {errors.currentPassword}
-                </p>
-              )}
+        {passwordMode && (
+          <form onSubmit={handleChangePassword} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="currentPassword" className={labelClasses}>
+                  Current Password
+                </label>
+                <input
+                  id="currentPassword"
+                  type="password"
+                  value={passwordData.currentPassword}
+                  onChange={(e) => {
+                    setPasswordData((p) => ({ ...p, currentPassword: e.target.value }));
+                    if (errors.currentPassword) setErrors((prev) => ({ ...prev, currentPassword: undefined }));
+                  }}
+                  className={inputClasses}
+                  disabled={loading}
+                />
+                {errors.currentPassword && (
+                  <p className="text-red-500 text-sm mt-1">{errors.currentPassword}</p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="newPassword" className={labelClasses}>
+                  New Password
+                </label>
+                <input
+                  id="newPassword"
+                  type="password"
+                  value={passwordData.newPassword}
+                  onChange={(e) => {
+                    setPasswordData((p) => ({ ...p, newPassword: e.target.value }));
+                    if (errors.newPassword) setErrors((prev) => ({ ...prev, newPassword: undefined }));
+                  }}
+                  className={inputClasses}
+                  disabled={loading}
+                />
+                {errors.newPassword && <p className="text-red-500 text-sm mt-1">{errors.newPassword}</p>}
+              </div>
+
+              <div className="md:col-span-2">
+                <label htmlFor="confirmPassword" className={labelClasses}>
+                  Confirm New Password
+                </label>
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => {
+                    setPasswordData((p) => ({ ...p, confirmPassword: e.target.value }));
+                    if (errors.confirmPassword) setErrors((prev) => ({ ...prev, confirmPassword: undefined }));
+                  }}
+                  className={inputClasses}
+                  disabled={loading}
+                />
+                {errors.confirmPassword && (
+                  <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>
+                )}
+              </div>
             </div>
 
-            <div>
-              <label htmlFor="newPassword" className={labelClasses}>
-                New Password
-              </label>
-              <input
-                id="newPassword"
-                type="password"
-                name="newPassword"
-                value={passwordData.newPassword}
-                onChange={handlePasswordChange}
-                className={inputClasses}
-                disabled={loading}
-              />
-              {errors.newPassword && (
-                <p className="text-red-500 text-sm mt-1">
-                  {errors.newPassword}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label htmlFor="confirmPassword" className={labelClasses}>
-                Confirm Password
-              </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                name="confirmPassword"
-                value={passwordData.confirmPassword}
-                onChange={handlePasswordChange}
-                className={inputClasses}
-                disabled={loading}
-              />
-              {errors.confirmPassword && (
-                <p className="text-red-500 text-sm mt-1">
-                  {errors.confirmPassword}
-                </p>
-              )}
-            </div>
-
-            <div className="flex gap-4 pt-4">
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white py-2 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-400"
-              >
-                <FiCheck /> Update Password
-              </button>
-              <button
-                type="button"
-                onClick={() => setPasswordMode(false)}
-                disabled={loading}
-                className="flex-1 bg-gray-200 text-gray-700 py-2 px-6 rounded-lg font-medium hover:bg-gray-300 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="bg-blue-600 text-white py-2 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-400"
+            >
+              {loading ? "Updating..." : "Update Password"}
+            </button>
           </form>
-        ) : (
-          <p className="text-gray-600">
-            Keep your account secure by regularly updating your password.
-          </p>
         )}
       </div>
     </div>
   );
-};
-
-Profile.propTypes = {
-  user: PropTypes.shape({
-    name: PropTypes.string,
-    email: PropTypes.string,
-    phone: PropTypes.string,
-    department: PropTypes.string,
-    role: PropTypes.string,
-    joinDate: PropTypes.string,
-  }),
-  onUpdate: PropTypes.func,
-  onChangePassword: PropTypes.func,
 };
 
 export default Profile;

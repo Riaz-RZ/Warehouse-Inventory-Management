@@ -1,4 +1,4 @@
-import { FiBox, FiUser } from "react-icons/fi";
+import { FiBox } from "react-icons/fi";
 
 const Header = () => {
   return (
@@ -9,11 +9,6 @@ const Header = () => {
         <h1 className="text-lg font-semibold">
           Warehouse Inventory Management
         </h1>
-      </div>
-
-      <div className="flex items-center gap-2 cursor-pointer hover:text-blue-400 transition">
-        <FiUser className="text-xl" />
-        <span className="text-sm">Admin</span>
       </div>
 
     </header>

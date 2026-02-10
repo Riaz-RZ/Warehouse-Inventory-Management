@@ -3,11 +3,12 @@ const app = express();
 const cors = require("cors");
 const mongoose = require("mongoose");
 require("dotenv").config();
+const ensureDefaultAdmin = require("./utils/ensureDefaultAdmin");
 
 // Middleware
 app.use(cors({
     origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-type", "Authorization"]
 }));
 app.use(express.json());
@@ -32,6 +33,11 @@ app.use("/api", apiRoutes);
 // Start Server
 const startServer = async() => {
     await mongoConnect();
+    try {
+        await ensureDefaultAdmin();
+    } catch (err) {
+        console.error("Default admin seed error:", err?.message || err);
+    }
     app.listen(process.env.PORT, () => {
         console.log(`Server is running on port ${process.env.PORT}`);
     });
